@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Physics JSON Editor</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  </head>
+  <body>
+    <style>
+      table,
+      th,
+      td {
+        border: 1px solid black;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 10px;
+      }
+    </style>
+    <div id="app">
+      {{message}}
+      <div>
+        <table>
+          <tr>
+            <th>title</th>
+            <td>Target File</td>
+            <td>Import File</td>
+          </tr>
+          <tr>
+            <th>File Selector</th>
+            <td><input type="file" name="objFile" id="objFile" /></td>
+            <td>
+              <input type="file" name="srcFIle" id="srcFIle" /><br /><input
+                type="button"
+                value="clear"
+                id="clearSrcFile"
+              />
+            </td>
+          </tr>
+          <tr>
+            <th>Errors<br />(when exists)</th>
+            <td style="color: red">
+              <p v-for="v in objFileErrors">{{v}}</p>
+            </td>
+            <td style="color: red">
+              <p v-for="v in srcFileErrors">{{v}}</p>
+            </td>
+          </tr>
+        </table>
+      </div>
+      <div>
+        <p v-for="v in befEditErrors">{{v}}</p>
+        <input
+          type="button"
+          value="Start Editing"
+          id="editStart"
+          :disabled="!canStartEditing"
+        />
+      </div>
+      <div v-show="isEditing">
+        <table>
+          <tr>
+            <th>Sort</th>
+            <th>Physics Dictionary Name</th>
+            <th>Exists in Target File</th>
+            <th>Exists in Import File</th>
+          </tr>
+          <tr v-for="(v,i) in editTemp">
+            <td>
+              <input
+                type="button"
+                value="▲"
+                style="display: block"
+                v-if="i"
+                @click="swapper(i-1)"
+              />
+              <input
+                type="button"
+                value="▼"
+                style="display: block"
+                v-if="editTemp.length-i-1"
+                @click="swapper(i)"
+              />
+            </td>
+            <td>{{v.name}}</td>
+            <td>{{v.hasDestData ? 'YES' : 'No'}}</td>
+            <td>
+              {{v.hasTmpData ? 'YES' : 'No'}}
+              <span v-show="v.hasTmpData">
+                <input type="checkbox" v-model="v.importData" />Import
+              </span>
+            </td>
+          </tr>
+        </table>
+        <input type="button" value="Export" @click="exportJSON" />
+        <a style="display: none;" id="downloader" download="edited.physics3.json"></a>
+      </div>
+    </div>
+    <script>
+      app = new Vue({
+        el: "#app",
+        data: {
+          message: "Hello Vue.js!",
+          objFileErrors: [],
+          srcFileErrors: [],
+          befEditErrors: [],
+          canStartEditing: false,
+          isEditing: false,
+          fcDest: null,
+          objFileContent: null,
+          fcTemp: null,
+          srcFileContent: null,
+          editTemp: [
+            {
+              name: "physicsDictionaryName",
+              hasDestData: false,
+              destIndex: -1,
+              hasTmpData: false,
+              tmpIndex: -1,
+              importData: false,
+            },
+          ],
+        },
+        methods: {
+          initEditTemp() {
+            let arr = this.fcDest.Meta.PhysicsDictionary.map((v, i) => ({
+              name: v.Name,
+              hasDestData: true,
+              destIndex: i,
+              hasTmpData: false,
+              tmpIndex: -1,
+              importData: false,
+            }));
+            let tmp = this.fcTemp.Meta.PhysicsDictionary.map((v) => v.Name);
+            arr = arr.concat(
+              tmp
+                .map((v, i) => ({
+                  name: v,
+                  hasDestData: false,
+                  destIndex: -1,
+                  hasTmpData: true,
+                  tmpIndex: i,
+                  importData: false,
+                }))
+                .filter((v) => !arr.some((e) => e.name == v.name))
+            );
+            arr
+              .filter((v) => v.hasDestData && tmp.includes(v.name))
+              .forEach((v) => {
+                if (!v.hasDestData) return;
+                tmp.forEach((e, i) => {
+                  if (v.hasTmpData) return;
+                  if (e == v.name) {
+                    v.hasTmpData = true;
+                    v.tmpIndex = i;
+                  }
+                });
+              });
+            this.editTemp = arr;
+          },
+          swapper(i) {
+            const temp = this.editTemp[i];
+            this.editTemp.splice(i, 2, this.editTemp[i + 1], this.editTemp[i]);
+          },
+          exportJSON() {
+            let newFc = JSON.parse(JSON.stringify(this.fcDest));
+            let newPhysicsSettings = this.editTemp.map((v) => {
+              if (v.hasDestData) {
+                if (v.importData) {
+                  return this.fcTemp.PhysicsSettings[v.tmpIndex];
+                } else {
+                  return this.fcDest.PhysicsSettings[v.destIndex];
+                }
+              } else if (v.importData) {
+                return this.fcTemp.PhysicsSettings[v.tmpIndex];
+              } else {
+                return null;
+              }
+            }).filter(v => v);
+            let newPhysicsDictionary = this.editTemp.map((v) => {
+              if (v.hasDestData) {
+                if (v.importData) {
+                  return this.fcTemp.Meta.PhysicsDictionary[v.tmpIndex];
+                } else {
+                  return this.fcDest.Meta.PhysicsDictionary[v.destIndex];
+                }
+              } else if (v.importData) {
+                return this.fcTemp.Meta.PhysicsDictionary[v.tmpIndex];
+              } else {
+                return null;
+              }
+            }).filter(v => v);
+            newFc.PhysicsSettings = newPhysicsSettings;
+            newFc.Meta.PhysicsDictionary = newPhysicsDictionary;
+            newFc.Meta.PhysicsDictionary.forEach((v, i) => {
+              let id = "PhysicsSetting" + (i + 1);
+              v.Id = id;
+              newFc.PhysicsSettings[i].Id = id;
+            });
+            newFc.Meta.PhysicsSettingCount = newPhysicsSettings.length;
+            let counts = newPhysicsSettings.reduce(
+              (p, v) => [
+                p[0] + v.Input.length,
+                p[1] + v.Output.length,
+                p[2] + v.Vertices.length
+              ],[0, 0, 0]
+            );
+            newFc.Meta.TotalInputCount = counts[0];
+            newFc.Meta.TotalOutputCount = counts[1];
+            newFc.Meta.VertexCount = counts[2];
+
+            const jsonStr = JSON.stringify(newFc, null, 2);
+            const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.getElementById("downloader");
+            a.href = url;
+            a.click();
+            URL.revokeObjectURL(url);
+          },
+        },
+      });
+
+      const objFile = document.getElementById("objFile");
+      const srcFile = document.getElementById("srcFIle");
+
+      const reader1 = new FileReader();
+      reader1.onload = function (e) {
+        try {
+          let text = e.target.result;
+          text = JSON.parse(text);
+          app.objFileContent = text;
+        } catch (err) {
+          app.objFileErrors.push("Failed to read file as JSON: " + err.message);
+        }
+        checkBeforeEditError();
+      };
+      reader1.onerror = function () {
+        app.objFileErrors.push("Failed to read file");
+      };
+      const reader2 = new FileReader();
+      reader2.onload = function (e) {
+        try {
+          let text = e.target.result;
+          text = JSON.parse(text);
+          app.srcFileContent = text;
+        } catch (err) {
+          app.srcFileErrors.push("Failed to read file as JSON: " + err.message);
+        }
+        checkBeforeEditError();
+      };
+      reader2.onerror = function () {
+        app.srcFileErrors.push("Failed to read file");
+      };
+      function checkBeforeEditError() {
+        app.canStartEditing = false;
+        app.befEditErrors.splice(0);
+        if (!app.objFileContent) {
+          app.befEditErrors.push("Target file is Empty.");
+        } else if (app.objFileContent.Version != 3) {
+          app.befEditErrors.push("Target file’s version is not supported.");
+        }
+        if (!app.srcFileContent) {
+          // app.befEditErrors.push("Import file is Empty.");
+        } else if (app.srcFileContent.Version != 3) {
+          app.befEditErrors.push("Import file’s version is not supported.");
+        }
+        app.canStartEditing = app.befEditErrors.length == 0;
+      }
+
+      objFile.onchange = function () {
+        const file = objFile.files[0];
+        app.objFileContent = null;
+        app.objFileErrors.splice(0);
+        if (!file) {
+          app.objFileErrors.push("Target file is Empty");
+          checkBeforeEditError();
+          return;
+        }
+        reader1.readAsText(file, "utf-8");
+      };
+      srcFile.onchange = function () {
+        const file = srcFile.files[0];
+        app.srcFileContent = null;
+        app.srcFileErrors.splice(0);
+        if (!file) {
+          app.srcFileErrors.push("Import file is Empty");
+          checkBeforeEditError();
+          return;
+        }
+        reader2.readAsText(file, "utf-8");
+      };
+      clearSrcFile.addEventListener("click", function () {
+        srcFile.value = "";
+        app.srcFileContent = null;
+        app.srcFileErrors.splice(0);
+        checkBeforeEditError();
+      });
+
+      editStart.addEventListener("click", function () {
+        if (app.isEditing || !app.canStartEditing) {
+          return;
+        }
+        app.fcDest = JSON.parse(JSON.stringify(app.objFileContent));
+        app.fcTemp = app.srcFileContent
+          ? JSON.parse(JSON.stringify(app.srcFileContent))
+          : null;
+        app.isEditing = true;
+        app.initEditTemp();
+      });
+    </script>
+  </body>
+</html>
