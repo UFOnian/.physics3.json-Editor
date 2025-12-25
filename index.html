@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Physics JSON Editor</title>
-    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Physics JSON Editor</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
 </head>
+
 <body>
   <style>
     table,
@@ -25,8 +26,15 @@
     td {
       padding: 5px 10px;
     }
+
+    .RowSwapWaning {
+      background-color: hotpink;
+    }
   </style>
   <div id="app">
+    <div>
+      You can send Feedback to me (UFOnian) at <a href="https://github.com/UFOnian/.physics3.json-Editor">here</a>.
+    </div>
     <div v-show="!isEditing">
       <!-- File Selector -->
       <table>
@@ -39,7 +47,7 @@
           <th>File Selector</th>
           <td><input type="file" name="objFile" id="objFile" /></td>
           <td>
-            <input type="file" name="srcFIle" id="srcFIle" /><br />
+            <input type="file" name="srcFile" id="srcFile" /><br />
             <input type="button" value="clear" @click="clearSrcFile" />
           </td>
         </tr>
@@ -77,6 +85,7 @@
       </div>
     </div>
     <div v-show="isEditing">
+      <!-- Main Editor -->
       <table>
         <tr>
           <th>Sort</th>
@@ -90,31 +99,39 @@
               <tr style="padding: 0;">
                 <td style="padding: 5px 0 5px 5px;">
                   <input type="button" value="▲" style="display: block" tabindex="-1" :disabled="!i" @click="swapper(i-1,i)" />
-                  <input type="button" value="▼" style="display: block" tabindex="-1" :disabled="!(editTemp.length-i-1)" @click="swapper(i,i+1)" />
+                  <input type="button" value="▼" style="display: block" tabindex="-1" :disabled="!(editTemp.length-i-1)"
+                    @click="swapper(i,i+1)" />
                 </td>
                 <td style="padding: 0 5px 0 2px;">
-                  <input type="text" size="1" inputmode="numeric" pattern="\d|[1-9]\d*" name="editTblSorter" class="sortNum" min="0" :max="editTemp.length-1" step="1" :value="i" @keydown.up.prevent="chgSortNum(i, null, i-1,v.name)" @keydown.down.prevent="chgSortNum(i, null, i+1,v.name)"
-                    @keydown.subtract.prevent @change.prevent="chgSortNum(i, $event, 0, v.name)">
+                  <input type="text" size="1" inputmode="numeric" pattern="\d|[1-9]\d*" name="editTblSorter" class="sortNum" min="0"
+                    :max="editTemp.length-1" step="1" :value="i" @keydown.up.prevent="chgSortNum(i, null, i-1,v.name)"
+                    @keydown.down.prevent="chgSortNum(i, null, i+1,v.name)" @keydown.subtract.prevent
+                    @change.prevent="chgSortNum(i, $event, 0, v.name)">
                 </td>
               </tr>
             </table>
           </td>
-          <td>{{v.name}}</td>
+          <td :style="v.removeData ? 'background-color: darkgray;' : v.importData ? 'background-color: palegreen;' : ''">
+            {{v.name}}
+          </td>
           <!-- Exists in Target File -->
-          <td style="width: 0;" :style="v.destIndex>=0 && editTemp.slice(0,i).some(e=>e.destIndex>=v.destIndex) ? 'background-color: hotpink;' : ''">
+          <td style="width: 0;" :class="destSwapped(i)">
             {{v.hasDestData ? v.destIndex : ""}}
           </td>
-          <td>
+          <td :style="v.removeData ? 'background-color: darkgray;' : ''">
             {{v.hasDestData ? 'YES' : 'No'}}
+            <span v-show="v.hasDestData">
+              <input type="checkbox" v-model="v.removeData" />Remove
+            </span>
           </td>
           <!-- Exists in Import File -->
-          <td style="width: 0;" :style="v.tmpIndex>=0 && editTemp.slice(0,i).some(e=>e.tmpIndex>=v.tmpIndex) ? 'background-color: hotpink;' : ''">
+          <td style="width: 0;" :class="tempSwapped(i)">
             {{v.hasTmpData ? v.tmpIndex : ""}}
           </td>
-          <td>
+          <td :style="v.removeData ? 'background-color: darkgray;' : v.importData ? 'background-color: palegreen;' : ''">
             {{v.hasTmpData ? 'YES' : 'No'}}
             <span v-show="v.hasTmpData">
-              <input type="checkbox" v-model="v.importData" />Import
+              <input type="checkbox" v-model="v.importData" :disabled="v.removeData" />Import
             </span>
           </td>
         </tr>
@@ -128,7 +145,10 @@
     </div>
   </div>
   <script>
-    app = new Vue({
+    const styles = {
+      CRowSwapWaning: ['RowSwapWaning'],
+    };
+    const app = new Vue({
       el: "#app",
       data: {
         objFileErrors: [],
@@ -149,6 +169,7 @@
             destIndex: -1,
             hasTmpData: false,
             tmpIndex: -1,
+            removeData: false,
             importData: false,
             sortSelect: false,
           },
@@ -162,6 +183,7 @@
             destIndex: -1,
             hasTmpData: false,
             tmpIndex: -1,
+            removeData: false,
             importData: false,
             sortSelect: false,
           };
@@ -178,7 +200,7 @@
             hasDestData: true,
             destIndex: i,
           }));
-          const tmp = this.fcTemp.Meta.PhysicsDictionary.map((v) => v.Name);
+          const tmp = (this.fcTemp?.Meta?.PhysicsDictionary || []).map((v) => v.Name);
           arr = arr.concat(
             tmp
               .map((v, i) => this.newEditTempRow({
@@ -203,6 +225,7 @@
           this.editTemp = arr;
         },
         swapper(i, j) {
+          if (i == j) return;
           const temp = (this.editTemp.splice(i, 1, this.editTemp[j]))[0];
           this.editTemp.splice(j, 1, temp);
         },
@@ -213,7 +236,6 @@
           }
           if (j < 0 || this.editTemp.length - 1 < j) return this.restoreFocus(name);;
           this.swapper(i, j);
-          this.$forceUpdate();
           this.restoreFocus(name);
         },
         restoreFocus: function (name) {
@@ -223,32 +245,28 @@
         },
         exportJSON: function () {
           const newFc = JSON.parse(JSON.stringify(this.fcDest));
-          const newPhysicsSettings = this.editTemp.map((v) => {
+          const newPhysicsSettings = [];
+          const newPhysicsDictionary = [];
+
+          this.editTemp.forEach((v) => {
+            if (v.removeData) return;
             if (v.hasDestData) {
               if (v.importData) {
-                return this.fcTemp.PhysicsSettings[v.tmpIndex];
+                newPhysicsSettings.push(this.fcTemp.PhysicsSettings[v.tmpIndex]);
+                newPhysicsDictionary.push(this.fcTemp.Meta.PhysicsDictionary[v.tmpIndex]);
+                return;
               } else {
-                return this.fcDest.PhysicsSettings[v.destIndex];
+                newPhysicsSettings.push(this.fcDest.PhysicsSettings[v.destIndex]);
+                newPhysicsDictionary.push(this.fcDest.Meta.PhysicsDictionary[v.destIndex]);
+                return;
               }
-            } else if (v.importData) {
-              return this.fcTemp.PhysicsSettings[v.tmpIndex];
-            } else {
-              return null;
             }
-          }).filter(v => v);
-          const newPhysicsDictionary = this.editTemp.map((v) => {
-            if (v.hasDestData) {
-              if (v.importData) {
-                return this.fcTemp.Meta.PhysicsDictionary[v.tmpIndex];
-              } else {
-                return this.fcDest.Meta.PhysicsDictionary[v.destIndex];
-              }
-            } else if (v.importData) {
-              return this.fcTemp.Meta.PhysicsDictionary[v.tmpIndex];
-            } else {
-              return null;
+            if (v.importData) {
+              newPhysicsSettings.push(this.fcTemp.PhysicsSettings[v.tmpIndex]);
+              newPhysicsDictionary.push(this.fcTemp.Meta.PhysicsDictionary[v.tmpIndex]);
             }
-          }).filter(v => v);
+          });
+
           newFc.PhysicsSettings = newPhysicsSettings;
           newFc.Meta.PhysicsDictionary = newPhysicsDictionary;
           newFc.Meta.PhysicsDictionary.forEach((v, i) => {
@@ -280,7 +298,7 @@
           this.selectedImportFile = "";
           this.srcFileContent = null;
           this.srcFileErrors.splice(0);
-          srcFIle.value = "";
+          srcFile.value = "";
           checkBeforeEditError();
         },
         editStart: function () {
@@ -300,21 +318,39 @@
           }
           this.isEditing = false;
         },
+        destSwapped: function (idx) {
+          const curDestIndex = this.editTemp[idx].destIndex;
+          return (curDestIndex >= 0
+            && this.editTemp.slice(0, idx).some(e => e.destIndex >= curDestIndex)
+            ? styles.CRowSwapWaning
+            : '');
+        },
+        tempSwapped: function (idx) {
+          const curTmpIndex = this.editTemp[idx].tmpIndex;
+          return (curTmpIndex >= 0
+            && this.editTemp.slice(0, idx).some(e => e.tmpIndex >= curTmpIndex)
+            ? styles.CRowSwapWaning
+            : '');
+        },
       },
       computed: {
-        destOutputParams: function () {
+        destParams: function () {
           const src = this.fcDest;
           if (!src) return [];
           if (!src || !src?.PhysicsSettings?.length) return [];
-          return src.PhysicsSettings.reduce(
+          return this.editTemp.filter(v => v.hasDestData && !v.removeData).reduce(
             (p1, v1) => p1.concat(
-              v1.Output.filter(v2 => v2.Destination.Target == "Parameter").map(v2 => v2.Destination.Id)
+              this.fcDest.PhysicsSettings[v1.destIndex].Output
+                .filter(v2 => v2.Destination.Target == "Parameter").map(v2 => v2.Destination.Id)
+            ).concat(
+              this.fcDest.PhysicsSettings[v1.destIndex].Input
+                .filter(v2 => v2.Source.Target == "Parameter").map(v2 => v2.Source.Id)
             )
             , []);
         },
         importOutputParams: function () {
           if (!this.fcTemp) return [];
-          return this.editTemp.filter(v => v.importData).reduce(
+          return this.editTemp.filter(v => v.hasTmpData && !v.removeData && v.importData).reduce(
             (p1, v1) => p1.concat(
               this.fcTemp.PhysicsSettings[v1.tmpIndex].Output
                 .filter(v2 => v2.Destination.Target == "Parameter").map(v2 => v2.Destination.Id)
@@ -324,13 +360,27 @@
         addedOutputParams: function () {
           if (!this.fcTemp) return [];
           if (!this.importOutputParams.length) return [];
-          return this.importOutputParams.filter(v => !this.destOutputParams.includes(v));
+          return this.importOutputParams.filter(v => !this.destParams.includes(v));
+        },
+        importInputParams: function () {
+          if (!this.fcTemp) return [];
+          return this.editTemp.filter(v => v.hasTmpData && !v.removeData && v.importData).reduce(
+            (p1, v1) => p1.concat(
+              this.fcTemp.PhysicsSettings[v1.tmpIndex].Input
+                .filter(v2 => v2.Source.Target == "Parameter").map(v2 => v2.Source.Id)
+            )
+            , []);
+        },
+        addedInputParams: function () {
+          if (!this.fcTemp) return [];
+          if (!this.importInputParams.length) return [];
+          return this.importInputParams.filter(v => !this.destParams.includes(v));
         },
       },
     });
 
     const objFile = document.getElementById("objFile");
-    const srcFile = document.getElementById("srcFIle");
+    const srcFile = document.getElementById("srcFile");
 
     const reader1 = new FileReader();
     reader1.onload = function (e) {
@@ -369,14 +419,14 @@
         app.befEditErrors.push("Target File is Empty.");
       } else if (app.objFileContent.Version != 3) {
         app.befEditErrors.push("Target File’s version is not supported.");
-      } else if (!isValidPhysicsJSON(app.objFileContent)) {
+      } else if (!isValidPhysicsJSON(app.objFileContent, "Target")) {
         app.befEditErrors.push("Target File is not valid as .physics3.json");
       }
       if (!app.srcFileContent) {
         // app.befEditErrors.push("Import File is Empty.");
       } else if (app.srcFileContent.Version != 3) {
         app.befEditErrors.push("Import File’s version is not supported.");
-      } else if (!isValidPhysicsJSON(app.srcFileContent)) {
+      } else if (!isValidPhysicsJSON(app.srcFileContent, "Import")) {
         app.befEditErrors.push("Import File is not valid as .physics3.json");
       }
       app.canStartEditing = app.befEditErrors.length == 0;
@@ -407,10 +457,25 @@
       reader2.readAsText(file, "utf-8");
     };
 
-    function isValidPhysicsJSON(obj) {
-      return (obj
-        && obj?.PhysicsSettings?.length
-        && obj?.Meta?.PhysicsDictionary?.length);
+    function isValidPhysicsJSON(obj, name) {
+      if (!obj || !obj?.PhysicsSettings?.length || !obj?.Meta?.PhysicsDictionary?.length) {
+        app.befEditErrors.push(`${name} File is missing Meta.PhysicsDictionary or PhysicsSettings`);
+        return false;
+      }
+      if (obj.PhysicsSettings.length < obj.Meta.PhysicsDictionary.length) {
+        app.befEditErrors.push(`${name} File contains more entries in Meta.PhysicsDictionary than in PhysicsSettings`);
+        return false;
+      }
+      if (obj.Meta.PhysicsDictionary.some((pd, i) => pd.Id !== obj.PhysicsSettings[i].Id)) {
+        app.befEditErrors.push(`${name} File has mismatched Ids between Meta.PhysicsDictionary and PhysicsSettings`);
+        return false;
+      }
+      const names = obj.Meta.PhysicsDictionary.map(v => v.Name);
+      if (new Set(names).size !== names.length) {
+        app.befEditErrors.push(`${name} File contains duplicate Names in Meta.PhysicsDictionary`);
+        return false;
+      }
+      return true;
     }
 
   </script>
