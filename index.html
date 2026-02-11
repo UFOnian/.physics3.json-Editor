@@ -1,47 +1,151 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Physics JSON Editor</title>
-  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  <!-- <script src="vue.js"></script> -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.7.11"></script>
 </head>
 
+<style>
+  table,
+  th,
+  td {
+    border: 1px solid black;
+    border-collapse: collapse;
+  }
+
+  table.no-border,
+  table.no-border th,
+  table.no-border td {
+    border: none;
+  }
+
+  table.spaced th,
+  table.spaced td {
+    padding: 5px 10px;
+  }
+
+  th,
+  td {
+    padding: 0px 5px;
+  }
+
+
+  .fromtarget {
+    background-color: powderblue;
+  }
+
+  .fromimport {
+    background-color: palegreen;
+  }
+
+  .removed {
+    background-color: lightgray;
+  }
+
+  input[type=checkbox].big {
+    margin: 0px;
+    -ms-transform: scale(1.5, 1.5);
+    -webkit-transform: scale(1.5, 1.5);
+    transform: scale(1.5, 1.5);
+  }
+
+  .RowSwapWarning {
+    background-color: hotpink;
+  }
+
+  input[type=radio]:not(:checked)+.toggle {
+    border: solid 1px #777;
+    color: #333;
+    margin: 1px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  }
+
+  input[type=radio]:not(:checked):not(:disabled):hover+.toggle {
+    box-shadow: -1.5px 1.5px 1px #c2c;
+  }
+
+  input[type=radio]:checked+.toggle {
+    border: solid 1px #000;
+    color: #000;
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, .6);
+  }
+
+  input[type=radio]+.toggle {
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      background-color 0.15s,
+      box-shadow 0.15s,
+      transform 0.05s;
+  }
+
+  input[type=radio]:disabled+.toggle {
+    cursor: unset;
+    background-color: lightgray;
+    box-shadow: none;
+    border-color: #aaa;
+    color: #aaa;
+  }
+
+  .toggle {
+    white-space: wrap;
+    padding: 1px 6px;
+    font-size: smaller;
+  }
+
+  input[type=radio]:has(+.toggle) {
+    display: none;
+  }
+
+  .controller-pane {
+    text-align: center;
+    padding: 4px 0 0 0;
+  }
+
+  .controller-pane .control-button {
+    width: 30px;
+    height: 30px;
+    padding: 1px;
+    margin: 5px 0 0 0;
+    display: inline-block;
+    text-align: center;
+    font-size: medium;
+    font-weight: bolder;
+  }
+
+  option {
+    border-bottom: solid 1px;
+  }
+
+  option.fromtarget.selected {
+    background-color: #4a90e2;
+    color: white;
+  }
+
+  option.fromimport.selected {
+    background-color: #4caf50;
+    color: white;
+  }
+</style>
+
 <body>
-  <style>
-    table,
-    th,
-    td {
-      border: 1px solid black;
-      border-collapse: collapse;
-    }
-
-    table.no-border,
-    table.no-border th,
-    table.no-border td {
-      border: none;
-    }
-
-    th,
-    td {
-      padding: 5px 10px;
-    }
-
-    .RowSwapWaning {
-      background-color: hotpink;
-    }
-  </style>
   <div id="app">
     <div>
       You can send Feedback to me (UFOnian) at <a href="https://github.com/UFOnian/.physics3.json-Editor">here</a>.
     </div>
     <div v-show="!isEditing">
       <!-- File Selector -->
-      <table>
+      <table class="spaced">
         <tr>
           <th>title</th>
-          <td>Target File</td>
-          <td>Import File</td>
+          <td class="fromtarget">Original File</td>
+          <td class="fromimport">Import File</td>
         </tr>
         <tr>
           <th>File Selector</th>
@@ -71,8 +175,8 @@
       <table>
         <tr>
           <th>title</th>
-          <td>Target File</td>
-          <td>Import File</td>
+          <td class="fromtarget">Original File</td>
+          <td class="fromimport">Import File</td>
         </tr>
         <tr>
           <th>File</th>
@@ -84,401 +188,543 @@
         <input type="button" value="Reselect Files" @click="reselectFiles" />
       </div>
     </div>
-    <div v-show="isEditing">
-      <!-- Main Editor -->
-      <table>
-        <tr>
-          <th>Sort</th>
-          <th>Physics Dictionary Name</th>
-          <th colspan="2">Exists in Target File</th>
-          <th colspan="2">Exists in Import File</th>
-        </tr>
-        <tr v-for="(v,i) in editTemp" :key="v.name" :data-key="v.name">
-          <td style="padding: 0;">
-            <table class="no-border" style="padding: 0;">
-              <tr style="padding: 0;">
-                <td style="padding: 5px 0 5px 5px;">
-                  <input type="button" value="▲" style="display: block" tabindex="-1" :disabled="!i" @click="swapper(i-1,i)" />
-                  <input type="button" value="▼" style="display: block" tabindex="-1" :disabled="!(editTemp.length-i-1)"
-                    @click="swapper(i,i+1)" />
-                </td>
-                <td style="padding: 0 5px 0 2px;">
-                  <input type="text" size="1" inputmode="numeric" pattern="\d|[1-9]\d*" name="editTblSorter" class="sortNum" min="0"
-                    :max="editTemp.length-1" step="1" :value="i" @keydown.up.prevent="chgSortNum(i, null, i-1,v.name)"
-                    @keydown.down.prevent="chgSortNum(i, null, i+1,v.name)" @keydown.subtract.prevent
-                    @change.prevent="chgSortNum(i, $event, 0, v.name)">
-                </td>
-              </tr>
-            </table>
-          </td>
-          <td :style="v.removeData ? 'background-color: darkgray;' : v.importData ? 'background-color: palegreen;' : ''">
-            {{v.name}}
-          </td>
-          <!-- Exists in Target File -->
-          <td style="width: 0;" :class="destSwapped(i)">
-            {{v.hasDestData ? v.destIndex : ""}}
-          </td>
-          <td :style="v.removeData ? 'background-color: darkgray;' : ''">
-            {{v.hasDestData ? 'YES' : 'No'}}
-            <span v-show="v.hasDestData">
-              <input type="checkbox" v-model="v.removeData" />Remove
-            </span>
-          </td>
-          <!-- Exists in Import File -->
-          <td style="width: 0;" :class="tempSwapped(i)">
-            {{v.hasTmpData ? v.tmpIndex : ""}}
-          </td>
-          <td :style="v.removeData ? 'background-color: darkgray;' : v.importData ? 'background-color: palegreen;' : ''">
-            {{v.hasTmpData ? 'YES' : 'No'}}
-            <span v-show="v.hasTmpData">
-              <input type="checkbox" v-model="v.importData" :disabled="v.removeData" />Import
-            </span>
-          </td>
-        </tr>
-      </table>
-      <input type="button" value="Export" @click="exportJSON" />
-      <a style="display: none;" id="downloader" download="edited.physics3.json"></a>
-      <p>
-        <b>Added Output Parameter</b><br />
-        <span v-for="v in addedOutputParams">{{v}}<br /></span>
-      </p>
+    <div v-show="isEditing||isDebug">
+      <div style="display: flex; align-items: start; height: 300px;" style="border: solid 1px;">
+        <div style="display: flex;flex-direction: column; width: 49%; height: 100%;" style="border: solid 1px;">
+          <!-- SelectionPane -->
+          <div style="padding: 4px 0 4px 15px; height: 24px;">
+            <div style="display: inline-block; height: 100%;">
+              <span style="font-size: smaller;">select source:</span>
+              <input type="radio" name="srcSelect" id="d-src1" value="1" v-model="dispDataSource">
+              <label for="d-src1" class="toggle fromtarget">Original</label>
+              <input type="radio" name="srcSelect" id="d-src2" value="2" v-model="dispDataSource">
+              <label for="d-src2" class="toggle fromimport">Import</label>
+            </div>
+          </div>
+          <div style="flex: 1; display: flex;flex-direction: row-reverse;">
+            <!-- Controller -->
+            <div class="controller-pane" style="display: inline-block; height: 100%; width: 40px;">
+              <input type="button" value="▶" class="control-button" tabindex="-1" @click="insertDataUI" />
+              <input type="button" value="◀" class="control-button" tabindex="-1" @click="removeDataUI" :disabled="!mergedSelected" />
+            </div>
+            <div style="display: inline-block; height: 100%; flex:1; text-align: center;">
+              <!-- Contents -->
+              <select multiple style="width: 95%;height: 95%;" v-show="dispDataSource == DataSourceSim.TARGET" v-model="selectedFromTarget">
+                <option v-for="v in listOriginalTable" :value="v.idx"
+                  :class="{removed: v.listed, fromtarget: dispDataSource == DataSourceSim.TARGET ,fromimport: dispDataSource == DataSourceSim.IMPORT}">
+                  {{v.name}}
+                </option>
+              </select>
+              <select multiple style="width: 95%;height: 95%;" v-show="dispDataSource == DataSourceSim.IMPORT" v-model="selectedFromImport">
+                <option v-for="v in listImportTable" :value="v.idx"
+                  :class="{removed: v.listed, fromtarget: dispDataSource == DataSourceSim.TARGET ,fromimport: dispDataSource == DataSourceSim.IMPORT}">
+                  {{v.name}}
+                </option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex;flex-direction: column; width: 49%; height: 100%;" style="border: solid 1px;">
+          <!-- MergedPane -->
+          <div style="padding: 4px 0 4px 15px; height: 24px;">
+            <div style="display: inline-block; height: 100%;">
+              <label style="border: solid 1px; margin: 1px; padding: 4px 8px;font-size: smaller;">Merged</label>
+              <button @click="startRename" :disabled="mergedSelectedIndex.length != 1">rename</button>
+            </div>
+          </div>
+          <div style="flex: 1; display: flex;flex-direction: row-reverse;">
+            <!-- Controller -->
+            <div class="controller-pane" style="display: inline-block; height: 100%; width: 40px;">
+              <input type="button" value="<<" class="control-button" style="rotate: 90deg;padding-top: 3px;" tabindex="-1"
+                :disabled="!mergedSelectedIndex.length" @click="moveSelected(0)" />
+              <input type="button" value="<" class="control-button" style="rotate: 90deg;padding-top: 3px;" tabindex="-1"
+                :disabled="!mergedSelectedIndex.length" @click="moveSelected(1)" />
+              <input type="button" value=">" class="control-button" style="rotate: 90deg;padding-top: 3px;" tabindex="-1"
+                :disabled="!mergedSelectedIndex.length" @click="moveSelected(2)" />
+              <input type="button" value=">>" class="control-button" style="rotate: 90deg;padding-top: 3px;" tabindex="-1"
+                :disabled="!mergedSelectedIndex.length" @click="moveSelected(3)" />
+            </div>
+            <div style="display: inline-block; height: 100%; flex:1;text-align: center;">
+              <!-- Contents -->
+              <select multiple style="width: 95%;height: 95%;" v-model="mergedSelectedIndex">
+                <option :value="i" v-for="(v, i) in editTempListDisp" :key="v.dataSource + '-' + v.dataIdx"
+                  :class="{ fromtarget: v.dataSource == DataSourceSim.TARGET ,fromimport: v.dataSource == DataSourceSim.IMPORT, selected: mergedSelectedIndex.includes(i)}">
+                  {{v.name}}
+                </option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <input type="button" value="Export" @click="exportJSON" />
+        <a style="display: none;" id="downloader" download="edited.physics3.json"></a>
+        <p>
+          <b>Added Output Parameter</b><br />
+          <span v-for="v in addedOutputParams">{{v}}<br /></span>
+        </p>
+      </div>
     </div>
   </div>
-  <script>
-    const styles = {
-      CRowSwapWaning: ['RowSwapWaning'],
-    };
-    const app = new Vue({
-      el: "#app",
-      data: {
-        objFileErrors: [],
-        srcFileErrors: [],
-        befEditErrors: [],
-        selectedTargetFile: "",
-        selectedImportFile: "",
-        canStartEditing: false,
-        isEditing: false,
-        fcDest: null,
-        objFileContent: null,
-        fcTemp: null,
-        srcFileContent: null,
-        editTemp: [
-          {
-            name: "physicsDictionaryName",
-            hasDestData: false,
-            destIndex: -1,
-            hasTmpData: false,
-            tmpIndex: -1,
-            removeData: false,
-            importData: false,
-            sortSelect: false,
-          },
-        ],
-      },
-      methods: {
-        newEditTempRow: function (init) {
-          const tmp = {
-            name: "physicsDictionaryName",
-            hasDestData: false,
-            destIndex: -1,
-            hasTmpData: false,
-            tmpIndex: -1,
-            removeData: false,
-            importData: false,
-            sortSelect: false,
-          };
-          Object.keys(tmp).forEach(v => {
-            if (init.hasOwnProperty(v)) {
-              tmp[v] = init[v];
-            }
-          });
-          return tmp;
-        },
-        initEditTemp: function () {
-          let arr = this.fcDest.Meta.PhysicsDictionary.map((v, i) => this.newEditTempRow({
-            name: v.Name,
-            hasDestData: true,
-            destIndex: i,
-          }));
-          const tmp = (this.fcTemp?.Meta?.PhysicsDictionary || []).map((v) => v.Name);
-          arr = arr.concat(
-            tmp
-              .map((v, i) => this.newEditTempRow({
-                name: v,
-                hasTmpData: true,
-                tmpIndex: i,
-              }))
-              .filter((v) => !arr.some((e) => e.name == v.name))
-          );
-          arr
-            .filter((v) => v.hasDestData && tmp.includes(v.name))
-            .forEach((v) => {
-              if (!v.hasDestData) return;
-              tmp.forEach((e, i) => {
-                if (v.hasTmpData) return;
-                if (e == v.name) {
-                  v.hasTmpData = true;
-                  v.tmpIndex = i;
-                }
-              });
-            });
-          this.editTemp = arr;
-        },
-        swapper(i, j) {
-          if (i == j) return;
-          const temp = (this.editTemp.splice(i, 1, this.editTemp[j]))[0];
-          this.editTemp.splice(j, 1, temp);
-        },
-        chgSortNum: function (i, event, j, name) {
-          if (i < 0 || this.editTemp.length - 1 < i) return this.restoreFocus(name);;
-          if (event) {
-            j = event.target.value;
-          }
-          if (j < 0 || this.editTemp.length - 1 < j) return this.restoreFocus(name);;
-          this.swapper(i, j);
-          this.restoreFocus(name);
-        },
-        restoreFocus: function (name) {
-          this.$nextTick(() => {
-            document.querySelector("[data-key=\"" + name + "\"] [name=editTblSorter]").focus();
-          });
-        },
-        exportJSON: function () {
-          const newFc = JSON.parse(JSON.stringify(this.fcDest));
-          const newPhysicsSettings = [];
-          const newPhysicsDictionary = [];
-
-          this.editTemp.forEach((v) => {
-            if (v.removeData) return;
-            if (v.hasDestData) {
-              if (v.importData) {
-                newPhysicsSettings.push(this.fcTemp.PhysicsSettings[v.tmpIndex]);
-                newPhysicsDictionary.push(this.fcTemp.Meta.PhysicsDictionary[v.tmpIndex]);
-                return;
-              } else {
-                newPhysicsSettings.push(this.fcDest.PhysicsSettings[v.destIndex]);
-                newPhysicsDictionary.push(this.fcDest.Meta.PhysicsDictionary[v.destIndex]);
-                return;
-              }
-            }
-            if (v.importData) {
-              newPhysicsSettings.push(this.fcTemp.PhysicsSettings[v.tmpIndex]);
-              newPhysicsDictionary.push(this.fcTemp.Meta.PhysicsDictionary[v.tmpIndex]);
-            }
-          });
-
-          newFc.PhysicsSettings = newPhysicsSettings;
-          newFc.Meta.PhysicsDictionary = newPhysicsDictionary;
-          newFc.Meta.PhysicsDictionary.forEach((v, i) => {
-            const id = "PhysicsSetting" + (i + 1);
-            v.Id = id;
-            newFc.PhysicsSettings[i].Id = id;
-          });
-          newFc.Meta.PhysicsSettingCount = newPhysicsSettings.length;
-          const counts = newPhysicsSettings.reduce(
-            (p, v) => [
-              p[0] + v.Input.length,
-              p[1] + v.Output.length,
-              p[2] + v.Vertices.length
-            ], [0, 0, 0]
-          );
-          newFc.Meta.TotalInputCount = counts[0];
-          newFc.Meta.TotalOutputCount = counts[1];
-          newFc.Meta.VertexCount = counts[2];
-
-          const jsonStr = JSON.stringify(newFc, null, 2);
-          const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8" });
-          const url = URL.createObjectURL(blob);
-          const a = document.getElementById("downloader");
-          a.href = url;
-          a.click();
-          URL.revokeObjectURL(url);
-        },
-        clearSrcFile: function () {
-          this.selectedImportFile = "";
-          this.srcFileContent = null;
-          this.srcFileErrors.splice(0);
-          srcFile.value = "";
-          checkBeforeEditError();
-        },
-        editStart: function () {
-          if (this.isEditing || !this.canStartEditing) {
-            return;
-          }
-          this.fcDest = JSON.parse(JSON.stringify(this.objFileContent));
-          this.fcTemp = this.srcFileContent
-            ? JSON.parse(JSON.stringify(this.srcFileContent))
-            : null;
-          this.isEditing = true;
-          this.initEditTemp();
-        },
-        reselectFiles: function () {
-          if ("reselect" != prompt("Your Edits will be lost.\nIf you are sure type \"reselect\" into the following box and push OK.", "deny")) {
-            return;
-          }
-          this.isEditing = false;
-        },
-        destSwapped: function (idx) {
-          const curDestIndex = this.editTemp[idx].destIndex;
-          return (curDestIndex >= 0
-            && this.editTemp.slice(0, idx).some(e => e.destIndex >= curDestIndex)
-            ? styles.CRowSwapWaning
-            : '');
-        },
-        tempSwapped: function (idx) {
-          const curTmpIndex = this.editTemp[idx].tmpIndex;
-          return (curTmpIndex >= 0
-            && this.editTemp.slice(0, idx).some(e => e.tmpIndex >= curTmpIndex)
-            ? styles.CRowSwapWaning
-            : '');
-        },
-      },
-      computed: {
-        destParams: function () {
-          const src = this.fcDest;
-          if (!src) return [];
-          if (!src || !src?.PhysicsSettings?.length) return [];
-          return this.editTemp.filter(v => v.hasDestData && !v.removeData).reduce(
-            (p1, v1) => p1.concat(
-              this.fcDest.PhysicsSettings[v1.destIndex].Output
-                .filter(v2 => v2.Destination.Target == "Parameter").map(v2 => v2.Destination.Id)
-            ).concat(
-              this.fcDest.PhysicsSettings[v1.destIndex].Input
-                .filter(v2 => v2.Source.Target == "Parameter").map(v2 => v2.Source.Id)
-            )
-            , []);
-        },
-        importOutputParams: function () {
-          if (!this.fcTemp) return [];
-          return this.editTemp.filter(v => v.hasTmpData && !v.removeData && v.importData).reduce(
-            (p1, v1) => p1.concat(
-              this.fcTemp.PhysicsSettings[v1.tmpIndex].Output
-                .filter(v2 => v2.Destination.Target == "Parameter").map(v2 => v2.Destination.Id)
-            )
-            , []);
-        },
-        addedOutputParams: function () {
-          if (!this.fcTemp) return [];
-          if (!this.importOutputParams.length) return [];
-          return this.importOutputParams.filter(v => !this.destParams.includes(v));
-        },
-        importInputParams: function () {
-          if (!this.fcTemp) return [];
-          return this.editTemp.filter(v => v.hasTmpData && !v.removeData && v.importData).reduce(
-            (p1, v1) => p1.concat(
-              this.fcTemp.PhysicsSettings[v1.tmpIndex].Input
-                .filter(v2 => v2.Source.Target == "Parameter").map(v2 => v2.Source.Id)
-            )
-            , []);
-        },
-        addedInputParams: function () {
-          if (!this.fcTemp) return [];
-          if (!this.importInputParams.length) return [];
-          return this.importInputParams.filter(v => !this.destParams.includes(v));
-        },
-      },
-    });
-
-    const objFile = document.getElementById("objFile");
-    const srcFile = document.getElementById("srcFile");
-
-    const reader1 = new FileReader();
-    reader1.onload = function (e) {
-      try {
-        let text = e.target.result;
-        text = JSON.parse(text);
-        app.selectedTargetFile = objFile.files[0].name;
-        app.objFileContent = text;
-      } catch (err) {
-        app.objFileErrors.push("Failed to read file as JSON: " + err.message);
-      }
-      checkBeforeEditError();
-    };
-    reader1.onerror = function () {
-      app.objFileErrors.push("Failed to read file");
-    };
-    const reader2 = new FileReader();
-    reader2.onload = function (e) {
-      try {
-        let text = e.target.result;
-        text = JSON.parse(text);
-        app.selectedImportFile = srcFile.files[0].name;
-        app.srcFileContent = text;
-      } catch (err) {
-        app.srcFileErrors.push("Failed to read file as JSON: " + err.message);
-      }
-      checkBeforeEditError();
-    };
-    reader2.onerror = function () {
-      app.srcFileErrors.push("Failed to read file");
-    };
-    function checkBeforeEditError() {
-      app.canStartEditing = false;
-      app.befEditErrors.splice(0);
-      if (!app.objFileContent) {
-        app.befEditErrors.push("Target File is Empty.");
-      } else if (app.objFileContent.Version != 3) {
-        app.befEditErrors.push("Target File’s version is not supported.");
-      } else if (!isValidPhysicsJSON(app.objFileContent, "Target")) {
-        app.befEditErrors.push("Target File is not valid as .physics3.json");
-      }
-      if (!app.srcFileContent) {
-        // app.befEditErrors.push("Import File is Empty.");
-      } else if (app.srcFileContent.Version != 3) {
-        app.befEditErrors.push("Import File’s version is not supported.");
-      } else if (!isValidPhysicsJSON(app.srcFileContent, "Import")) {
-        app.befEditErrors.push("Import File is not valid as .physics3.json");
-      }
-      app.canStartEditing = app.befEditErrors.length == 0;
-    }
-
-    objFile.onchange = function () {
-      const file = objFile.files[0];
-      app.selectedTargetFile = "";
-      app.objFileContent = null;
-      app.objFileErrors.splice(0);
-      if (!file) {
-        app.objFileErrors.push("Target File is Empty");
-        checkBeforeEditError();
-        return;
-      }
-      reader1.readAsText(file, "utf-8");
-    };
-    srcFile.onchange = function () {
-      const file = srcFile.files[0];
-      app.selectedImportFile = "";
-      app.srcFileContent = null;
-      app.srcFileErrors.splice(0);
-      if (!file) {
-        app.srcFileErrors.push("Import File is Empty");
-        checkBeforeEditError();
-        return;
-      }
-      reader2.readAsText(file, "utf-8");
-    };
-
-    function isValidPhysicsJSON(obj, name) {
-      if (!obj || !obj?.PhysicsSettings?.length || !obj?.Meta?.PhysicsDictionary?.length) {
-        app.befEditErrors.push(`${name} File is missing Meta.PhysicsDictionary or PhysicsSettings`);
-        return false;
-      }
-      if (obj.PhysicsSettings.length < obj.Meta.PhysicsDictionary.length) {
-        app.befEditErrors.push(`${name} File contains more entries in Meta.PhysicsDictionary than in PhysicsSettings`);
-        return false;
-      }
-      if (obj.Meta.PhysicsDictionary.some((pd, i) => pd.Id !== obj.PhysicsSettings[i].Id)) {
-        app.befEditErrors.push(`${name} File has mismatched Ids between Meta.PhysicsDictionary and PhysicsSettings`);
-        return false;
-      }
-      const names = obj.Meta.PhysicsDictionary.map(v => v.Name);
-      if (new Set(names).size !== names.length) {
-        app.befEditErrors.push(`${name} File contains duplicate Names in Meta.PhysicsDictionary`);
-        return false;
-      }
-      return true;
-    }
-
-  </script>
 </body>
+<script>
+  const styles = {
+    CRowSwapWarning: ['RowSwapWarning'],
+  };
+  const DataSourceSim = {
+    TARGET: 1,
+    IMPORT: 2,
+  };
+  const app = new Vue({
+    el: "#app",
+    data: {
+      isDebug: false,
+      dispDataSource: DataSourceSim.IMPORT,
+      objFileErrors: [],
+      srcFileErrors: [],
+      befEditErrors: [],
+      selectedTargetFile: "",
+      selectedImportFile: "",
+      canStartEditing: false,
+      isEditing: false,
+      fcDest: null,
+      objFileContent: null,
+      fcTemp: null,
+      srcFileContent: null,
+      listOriginal: [
+        {
+          idx: 0,
+          originalName: "orig0",
+          renamedName: null,
+        },
+      ],
+      listImport: [
+        {
+          idx: 0,
+          originalName: "import0",
+          renamedName: null,
+        },
+      ],
+      editTempList: [
+        {
+          dataSource: DataSourceSim.TARGET,
+          dataIdx: 0,
+        },
+      ],
+      selectedFromTarget: [],
+      selectedFromImport: [],
+      mergedSelectedIndex: [],
+    },
+    methods: {
+      initEditTemp: function () {
+        let arr = this.fcDest.Meta.PhysicsDictionary.map((v, i) => ({
+          idx: i,
+          originalName: v.Name,
+          renamedName: null,
+        }));
+        fixDuplicateNames(arr);
+        this.listOriginal = arr;
+        arr = (this.fcTemp?.Meta?.PhysicsDictionary || []).map((v, i) => ({
+          idx: i,
+          originalName: v.Name,
+          renamedName: null,
+        }));
+        fixDuplicateNames(arr);
+        this.listImport = arr;
+        this.editTempList = [];
+        this.insertData(0, DataSourceSim.TARGET, this.listOriginal.map((v, i) => i));
+        this.dispDataSource = DataSourceSim.IMPORT;
+      },
+      insertData: function (insertIdx, dataSource, dataIdxs) {
+        this.editTempList.splice(
+          insertIdx || insertIdx === 0 ? 0 : this.editTempList.length,
+          0,
+          ...dataIdxs.map(i => ({
+            dataSource: dataSource,
+            dataIdx: i,
+          }))
+        );
+      },
+      insertDataUI: function () {
+        const selectedFrom = [, this.selectedFromTarget, this.selectedFromImport][this.dispDataSource];
+        const insertData = selectedFrom.map(i => this.listDisplay[i]).filter(v => !v.listed).map(v => v.idx);
+        const inseretIdx = this.mergedSelectedIndex.slice().sort((a, b) => a - b)[0] || this.editTempList.length;
+        this.insertData(inseretIdx, this.dispDataSource, insertData);
+      },
+      removeDataUI: function () {
+        const removes = this.mergedSelectedIndex.slice().sort((a, b) => b - a); // Descending
+        removes.forEach(i => {
+          this.editTempList.splice(i, 1);
+        });
+      },
+      startRename: function () {
+        if (this.mergedSelectedIndex.length !== 1) return;
+        const selectedIdx = this.mergedSelectedIndex[0];
+        const item = this.editTempListDisp[selectedIdx];
+
+        const currentName = item.name;
+        let newName = currentName;
+        newName = window.prompt(
+          [
+            "Rename",
+            "Data Source: " + (item.dataSource == DataSourceSim.TARGET ? "Original" : "Import"),
+            "Source Name: " + (item.data.originalName || ""),
+            "Current Name: " + currentName,
+          ].join("\n"), newName);
+        if (newName === null) return; // cancel
+        const dupeTestArr = this.editTempListDisp.filter((v, i) => i !== selectedIdx).map(v => v.name);
+        while (newName.trim() === "" || dupeTestArr.some(v => v === newName)) {
+          newName = window.prompt(
+            [
+              "Rename",
+              "Data Source: " + (item.dataSource == DataSourceSim.TARGET ? "Original" : "Import"),
+              "Source Name: " + (item.data.originalName || ""),
+              "Current Name: " + currentName,
+              " !: You cannot use empty name or duplicate name.",
+            ].join("\n"), newName);
+          if (newName === null) return; // cancel
+        }
+        item.data.renamedName = newName.trim();
+      },
+      moveSelected: function (destination) {
+        // [0: Top, 1: Up, 2: Down, 3:Bottom]
+        if (!this.mergedSelectedIndex.length) return;
+        const selected = this.mergedSelectedIndex.slice().sort((a, b) => a - b);
+
+        if (destination === 1 && selected[0] === 0) destination = 0;
+        if (destination === 2 && selected[selected.length - 1] === this.editTempList.length - 1) destination = 3;
+
+        const moving = selected.map(i => this.editTempList[i]);
+
+        selected.slice().reverse().forEach(i => {
+          this.editTempList.splice(i, 1);
+        });
+
+        let insertIdx, reselect;
+        switch (destination) {
+          case 0: // Top
+            insertIdx = 0;
+            reselect = false;
+            break;
+          case 1: // Up
+            insertIdx = selected[0] - 1;
+            reselect = true;
+            break;
+          case 2: // Down
+            const last = selected[selected.length - 1];
+            insertIdx = last + 1 - selected.length + 1;
+            reselect = true;
+            break;
+          case 3: // Bottom
+            insertIdx = this.editTempList.length;
+            reselect = false;
+            break;
+        }
+        this.editTempList.splice(insertIdx, 0, ...moving);
+        this.mergedSelectedIndex.splice(0);
+        if (reselect) {
+          const newSelection = moving.map((v, i) => insertIdx + i);
+          this.$nextTick(() => {
+            this.mergedSelectedIndex = newSelection;
+          });
+        } else {
+          this.mergedSelectedIndex = [];
+        }
+      },
+      destSwapped: function (idx) {
+        // TODO: Convert
+        const curDestIndex = this.editTempListDisp[idx].destIndex;
+        return (curDestIndex >= 0
+          && this.editTempListDisp.slice(0, idx).some(e => e.destIndex >= curDestIndex)
+          ? styles.CRowSwapWarning
+          : '');
+      },
+      tempSwapped: function (idx) {
+        // TODO: Convert
+        const curTmpIndex = this.editTempListDisp[idx].tmpIndex;
+        return (curTmpIndex >= 0
+          && this.editTempListDisp.slice(0, idx).some(e => e.tmpIndex >= curTmpIndex)
+          ? styles.CRowSwapWarning
+          : '');
+      },
+      exportJSON: function () {
+        const newFc = this.resultJSON
+
+        const jsonStr = JSON.stringify(newFc, null, 2);
+        const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.getElementById("downloader");
+        a.href = url;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      clearSrcFile: function () {
+        this.selectedImportFile = "";
+        this.srcFileContent = null;
+        this.srcFileErrors.splice(0);
+        srcFile.value = "";
+        checkBeforeEditError();
+      },
+      editStart: function () {
+        if (this.isEditing || !this.canStartEditing) {
+          return;
+        }
+        this.fcDest = JSON.parse(JSON.stringify(this.objFileContent));
+        this.fcTemp = this.srcFileContent
+          ? JSON.parse(JSON.stringify(this.srcFileContent))
+          : null;
+        this.isEditing = true;
+        this.initEditTemp();
+      },
+      reselectFiles: function () {
+        if ("reselect" != prompt("Your Edits will be lost.\nIf you are sure type \"reselect\" into the following box and push OK.", "deny")) {
+          return;
+        }
+        this.isEditing = false;
+      },
+    },
+    computed: {
+      DataSourceSim: function () { return DataSourceSim; },
+      editTempListDisp: function () {
+        let arr = this.editTempList;
+        return arr.map(v => {
+          let obj = [, this.listOriginal, this.listImport][v.dataSource][v.dataIdx];
+          return {
+            name : obj.renamedName || obj.originalName || "",
+            dataSource: v.dataSource,
+            dataIdx: v.dataIdx,
+            data: obj,
+            // {
+            //   idx: 0,
+            //   originalName: "import0",
+            //   renamedName: null,
+            // }
+          };
+        });
+      },
+      listOriginalTable: function () {
+        let arr = this.listOriginal;
+        const listedTemp = this.editTempList.filter(v => v.dataSource == DataSourceSim.TARGET).map(v => v.dataIdx);
+        return arr.map((v, i) => {
+          let obj = JSON.parse(JSON.stringify(v));
+          obj.name = v.renamedName || v.originalName || "";
+          obj.listed = listedTemp.includes(i);
+          return obj;
+        });
+      },
+      listImportTable: function () {
+        let arr = this.listImport;
+        const listedTemp = this.editTempList.filter(v => v.dataSource == DataSourceSim.IMPORT).map(v => v.dataIdx);
+        return arr.map((v, i) => {
+          let obj = JSON.parse(JSON.stringify(v));
+          obj.name = v.renamedName || v.originalName || "";
+          obj.listed = listedTemp.includes(i);
+          return obj;
+        });
+      },
+      listDisplay: function () {
+        return [, this.listOriginalTable, this.listImportTable][this.dispDataSource];
+      },
+      resultJSON: function () {
+        const newFc = JSON.parse(JSON.stringify(this.fcDest));
+        const newPhysicsSettings = [];
+        const newPhysicsDictionary = [];
+
+        this.editTempListDisp.forEach((v) => {
+          const list = [, this.fcDest, this.fcTemp][v.dataSource];
+          newPhysicsSettings.push(JSON.parse(JSON.stringify(list.PhysicsSettings[v.dataIdx])));
+          const dict = JSON.parse(JSON.stringify(list.Meta.PhysicsDictionary[v.dataIdx]));
+          dict.Name = v.data.renamedName || v.data.originalName || "";
+          newPhysicsDictionary.push(dict);
+        });
+
+        newFc.PhysicsSettings = newPhysicsSettings;
+        newFc.Meta.PhysicsDictionary = newPhysicsDictionary;
+        newFc.Meta.PhysicsDictionary.forEach((v, i) => {
+          const id = "PhysicsSetting" + (i + 1);
+          v.Id = id;
+          newFc.PhysicsSettings[i].Id = id;
+        });
+        newFc.Meta.PhysicsSettingCount = newPhysicsSettings.length;
+        const counts = newPhysicsSettings.reduce(
+          (p, v) => [
+            p[0] + v.Input.length,
+            p[1] + v.Output.length,
+            p[2] + v.Vertices.length
+          ], [0, 0, 0]
+        );
+        newFc.Meta.TotalInputCount = counts[0];
+        newFc.Meta.TotalOutputCount = counts[1];
+        newFc.Meta.VertexCount = counts[2];
+        return newFc;
+      },
+      destParams: function () {
+        const src = this.fcDest;
+        if (!src || !src?.PhysicsSettings?.length) return [];
+        return this.listOriginal.reduce((p, v, i) => {
+          return p.concat(
+            src.PhysicsSettings[i].Output
+              .filter(v2 => v2.Destination.Target == "Parameter").map(v2 => v2.Destination.Id)
+          ).concat(
+            src.PhysicsSettings[i].Input
+              .filter(v2 => v2.Source.Target == "Parameter").map(v2 => v2.Source.Id)
+          );
+        }, []);
+      },
+      importOutputParams: function () {
+        const src = this.fcTemp;
+        if (!src || !src?.PhysicsSettings?.length) return [];
+        const list = this.editTempList.filter(v => v.dataSource == DataSourceSim.IMPORT).map(v => v.dataIdx);
+        return list.reduce((p, v) => {
+          return p.concat(
+            src.PhysicsSettings[v].Output
+              .filter(v2 => v2.Destination.Target == "Parameter").map(v2 => v2.Destination.Id)
+          );
+        }, []);
+      },
+      addedOutputParams: function () {
+        return this.importOutputParams.filter(v => !this.destParams.includes(v));
+      },
+      importInputParams: function () {
+        const src = this.fcTemp;
+        if (!src || !src?.PhysicsSettings?.length) return [];
+        const list = this.editTempList.filter(v => v.dataSource == DataSourceSim.IMPORT).map(v => v.dataIdx);
+        return list.reduce((p, v) => {
+          return p.concat(
+            src.PhysicsSettings[v].Input
+              .filter(v2 => v2.Source.Target == "Parameter").map(v2 => v2.Source.Id)
+          );
+        }, []);
+      },
+      addedInputParams: function () {
+        return this.importInputParams.filter(v => !this.destParams.includes(v));
+      },
+      mergedSelected: function () {
+        return this.mergedSelectedIndex.length;
+      },
+    },
+  });
+
+  const objFile = document.getElementById("objFile");
+  const srcFile = document.getElementById("srcFile");
+
+  const reader1 = new FileReader();
+  reader1.onload = function (e) {
+    try {
+      let text = e.target.result;
+      text = JSON.parse(text);
+      app.selectedTargetFile = objFile.files[0].name;
+      app.objFileContent = text;
+    } catch (err) {
+      app.objFileErrors.push("Failed to read file as JSON: " + err.message);
+    }
+    checkBeforeEditError();
+  };
+  reader1.onerror = function () {
+    app.objFileErrors.push("Failed to read file");
+  };
+  const reader2 = new FileReader();
+  reader2.onload = function (e) {
+    try {
+      let text = e.target.result;
+      text = JSON.parse(text);
+      app.selectedImportFile = srcFile.files[0].name;
+      app.srcFileContent = text;
+    } catch (err) {
+      app.srcFileErrors.push("Failed to read file as JSON: " + err.message);
+    }
+    checkBeforeEditError();
+  };
+  reader2.onerror = function () {
+    app.srcFileErrors.push("Failed to read file");
+  };
+  function checkBeforeEditError() {
+    app.canStartEditing = false;
+    app.befEditErrors.splice(0);
+    if (!app.objFileContent) {
+      app.befEditErrors.push("Original File is Empty.");
+    } else if (app.objFileContent.Version != 3) {
+      app.befEditErrors.push("Original File’s version is not supported.");
+    } else if (!isValidPhysicsJSON(app.objFileContent, "Original")) {
+      app.befEditErrors.push("Original File is not valid as .physics3.json");
+    }
+    if (!app.srcFileContent) {
+      // app.befEditErrors.push("Import File is Empty.");
+    } else if (app.srcFileContent.Version != 3) {
+      app.befEditErrors.push("Import File’s version is not supported.");
+    } else if (!isValidPhysicsJSON(app.srcFileContent, "Import")) {
+      app.befEditErrors.push("Import File is not valid as .physics3.json");
+    }
+    app.canStartEditing = app.befEditErrors.length == 0;
+  }
+
+  objFile.onchange = function () {
+    const file = objFile.files[0];
+    app.selectedTargetFile = "";
+    app.objFileContent = null;
+    app.objFileErrors.splice(0);
+    if (!file) {
+      app.objFileErrors.push("Original File is Empty");
+      checkBeforeEditError();
+      return;
+    }
+    reader1.readAsText(file, "utf-8");
+  };
+  srcFile.onchange = function () {
+    const file = srcFile.files[0];
+    app.selectedImportFile = "";
+    app.srcFileContent = null;
+    app.srcFileErrors.splice(0);
+    if (!file) {
+      app.srcFileErrors.push("Import File is Empty");
+      checkBeforeEditError();
+      return;
+    }
+    reader2.readAsText(file, "utf-8");
+  };
+
+  function fixDuplicateNames(obj) {
+    while (hasSameNames(obj)) {
+      const names = {};
+      obj.forEach(v => {
+        const name = v.renamedName || v.originalName || "";
+        if (!names[name]) {
+          names[name] = 0;
+        }
+        names[name]++;
+        if (names[name] > 1) {
+          v.renamedName = name + "_" + names[name];
+        }
+      });
+    }
+  }
+
+  function hasSameNames(obj) {
+    const names = obj.map(v => v.renamedName || v.originalName || "");
+    return new Set(names).size !== names.length;
+  }
+
+  function isValidPhysicsJSON(obj, name) {
+    if (!obj || !obj?.PhysicsSettings?.length || !obj?.Meta?.PhysicsDictionary?.length) {
+      app.befEditErrors.push(`${name} File is missing Meta.PhysicsDictionary or PhysicsSettings`);
+      return false;
+    }
+    if (obj.PhysicsSettings.length < obj.Meta.PhysicsDictionary.length) {
+      app.befEditErrors.push(`${name} File contains more entries in Meta.PhysicsDictionary than in PhysicsSettings`);
+      return false;
+    }
+    if (obj.Meta.PhysicsDictionary.some((pd, i) => pd.Id !== obj.PhysicsSettings[i].Id)) {
+      app.befEditErrors.push(`${name} File has mismatched Ids between Meta.PhysicsDictionary and PhysicsSettings`);
+      return false;
+    }
+    const names = obj.Meta.PhysicsDictionary.map(v => v.Name);
+    if (new Set(names).size !== names.length) {
+      // TODO: Dupe Name Error will automatically fix later
+      app.befEditErrors.push(`${name} File contains duplicate Names in Meta.PhysicsDictionary`);
+      return false;
+    }
+    return true;
+  }
+</script>
 
 </html>
