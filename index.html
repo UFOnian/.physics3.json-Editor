@@ -118,6 +118,10 @@
     font-size: medium;
     font-weight: bolder;
   }
+
+  option {
+    border-bottom: solid 1px;
+  }
 </style>
 
 <body>
@@ -130,7 +134,7 @@
       <table class="spaced">
         <tr>
           <th>title</th>
-          <td class="fromtarget">Target File</td>
+          <td class="fromtarget">Original File</td>
           <td class="fromimport">Import File</td>
         </tr>
         <tr>
@@ -161,8 +165,8 @@
       <table>
         <tr>
           <th>title</th>
-          <td>Target File</td>
-          <td>Import File</td>
+          <td class="fromtarget">Original File</td>
+          <td class="fromimport">Import File</td>
         </tr>
         <tr>
           <th>File</th>
@@ -181,22 +185,29 @@
           <div style="padding: 4px 0 4px 15px; height: 24px;">
             <div style="display: inline-block; height: 100%;">
               <span style="font-size: smaller;">select source:</span>
-              <input type="radio" name="srcSelect" id="d-src1" value="1" v-model="displist">
+              <input type="radio" name="srcSelect" id="d-src1" value="1" v-model="dispDataSource">
               <label for="d-src1" class="toggle fromtarget">Original</label>
-              <input type="radio" name="srcSelect" id="d-src2" value="2" v-model="displist">
+              <input type="radio" name="srcSelect" id="d-src2" value="2" v-model="dispDataSource">
               <label for="d-src2" class="toggle fromimport">Import</label>
             </div>
           </div>
           <div style="flex: 1; display: flex;flex-direction: row-reverse;">
             <!-- Controller -->
             <div class="controller-pane" style="display: inline-block; height: 100%; width: 40px;">
-              <input type="button" value="▶" class="control-button" tabindex="-1" @click="insertDataUI"/>
+              <input type="button" value="▶" class="control-button" tabindex="-1" @click="insertDataUI" />
               <input type="button" value="◀" class="control-button" tabindex="-1" @click="removeDataUI" :disabled="!mergedSelected" />
             </div>
             <div style="display: inline-block; height: 100%; flex:1; text-align: center;">
               <!-- Contents -->
-              <select multiple style="width: 95%;height: 95%;">
-                <option v-for="v in listDisplay" :class="{removed: v.listed, fromtarget: displist == 1 ,fromimport: displist == 2}">
+              <select multiple style="width: 95%;height: 95%;" v-show="dispDataSource == DataSourceSim.TARGET" v-model="selectedFromTarget">
+                <option v-for="v in listOriginalTable" :value="v.idx"
+                  :class="{removed: v.listed, fromtarget: dispDataSource == DataSourceSim.TARGET ,fromimport: dispDataSource == DataSourceSim.IMPORT}">
+                  {{v.name}}
+                </option>
+              </select>
+              <select multiple style="width: 95%;height: 95%;" v-show="dispDataSource == DataSourceSim.IMPORT" v-model="selectedFromImport">
+                <option v-for="v in listImportTable" :value="v.idx"
+                  :class="{removed: v.listed, fromtarget: dispDataSource == DataSourceSim.TARGET ,fromimport: dispDataSource == DataSourceSim.IMPORT}">
                   {{v.name}}
                 </option>
               </select>
@@ -220,8 +231,11 @@
             </div>
             <div style="display: inline-block; height: 100%; flex:1;text-align: center;">
               <!-- Contents -->
-              <select multiple style="width: 95%;height: 95%;" v-model="mergedSelectedNames">
-                <option :value="i" v-for="(v, i) in editTemp">{{v.data.name+"1"}}</option>
+              <select multiple style="width: 95%;height: 95%;" v-model="mergedSelectedIndex">
+                <option :value="i" v-for="(v, i) in editTemp"
+                  :class="{ fromtarget: v.dataSource == DataSourceSim.TARGET ,fromimport: v.dataSource == DataSourceSim.IMPORT}">
+                  {{v.data.name}}
+                </option>
               </select>
             </div>
           </div>
@@ -242,7 +256,7 @@
   const styles = {
     CRowSwapWarning: ['RowSwapWarning'],
   };
-  const DataSource = {
+  const DataSourceSim = {
     TARGET: 1,
     IMPORT: 2,
   };
@@ -250,8 +264,7 @@
     el: "#app",
     data: {
       isDebug: false,
-      mergedSelectedNames: [],
-      displist: DataSource.IMPORT,
+      dispDataSource: DataSourceSim.IMPORT,
       objFileErrors: [],
       srcFileErrors: [],
       befEditErrors: [],
@@ -279,10 +292,13 @@
       ],
       editTempList: [
         {
-          DataSource: DataSource.TARGET,
+          dataSource: DataSourceSim.TARGET,
           dataIdx: 0,
         },
       ],
+      selectedFromTarget: [],
+      selectedFromImport: [],
+      mergedSelectedIndex: [],
     },
     methods: {
       initEditTemp: function () {
@@ -301,23 +317,30 @@
         fixDuplicateNames(arr);
         this.listImport = arr;
         this.editTempList = [];
-        this.insertData(0, DataSource.TARGET, this.listOriginal.map((v, i) => i));
+        this.insertData(0, DataSourceSim.TARGET, this.listOriginal.map((v, i) => i));
+        this.dispDataSource = DataSourceSim.IMPORT;
       },
-      insertData: function (insertIdx, DataSource, dataIdxs) {
+      insertData: function (insertIdx, dataSource, dataIdxs) {
         this.editTempList.splice(
           insertIdx || insertIdx === 0 ? 0 : this.editTempList.length,
           0,
           ...dataIdxs.map(i => ({
-            DataSource: DataSource,
+            dataSource: dataSource,
             dataIdx: i,
           }))
         );
       },
       insertDataUI: function () {
-        // TODO: Implement
+        const selectedFrom = [, this.selectedFromTarget, this.selectedFromImport][this.dispDataSource];
+        const insertData = selectedFrom.map(i => this.listDisplay[i]).filter(v => !v.listed).map(v => v.idx);
+        const inseretIdx = this.mergedSelectedIndex.sort((a, b) => a - b)[0] || this.editTempList.length;
+        this.insertData(inseretIdx, this.dispDataSource, insertData);
       },
       removeDataUI: function () {
-        // TODO: Implement
+        const removes = this.mergedSelectedIndex.sort((a, b) => b - a); // Descending
+        removes.forEach(i => {
+          this.editTempList.splice(i, 1);
+        });
       },
       swapper(i, j) { // TODO: Convert
         if (i == j) return;
@@ -339,7 +362,7 @@
         });
       },
       destSwapped: function (idx) {
-         // TODO: Convert
+        // TODO: Convert
         const curDestIndex = this.editTemp[idx].destIndex;
         return (curDestIndex >= 0
           && this.editTemp.slice(0, idx).some(e => e.destIndex >= curDestIndex)
@@ -347,7 +370,7 @@
           : '');
       },
       tempSwapped: function (idx) {
-         // TODO: Convert
+        // TODO: Convert
         const curTmpIndex = this.editTemp[idx].tmpIndex;
         return (curTmpIndex >= 0
           && this.editTemp.slice(0, idx).some(e => e.tmpIndex >= curTmpIndex)
@@ -391,13 +414,14 @@
       },
     },
     computed: {
+      DataSourceSim: function () { return DataSourceSim; },
       editTemp: function () {
         let arr = this.editTempList;
         return arr.map(v => {
-          let obj = JSON.parse(JSON.stringify([,this.listOriginal,this.listImport][v.DataSource][v.dataIdx]));
+          let obj = JSON.parse(JSON.stringify([, this.listOriginal, this.listImport][v.dataSource][v.dataIdx]));
           obj.name = obj.renamedName || obj.originalName || "";
           obj = {
-            DataSource: v.DataSource,
+            dataSource: v.dataSource,
             dataIdx: v.dataIdx,
             data: obj,
           };
@@ -406,7 +430,7 @@
       },
       listOriginalTable: function () {
         let arr = this.listOriginal;
-        const listedTemp = this.editTempList.filter(v => v.DataSource == DataSource.TARGET).map(v => v.dataIdx);
+        const listedTemp = this.editTempList.filter(v => v.dataSource == DataSourceSim.TARGET).map(v => v.dataIdx);
         return arr.map((v, i) => {
           let obj = JSON.parse(JSON.stringify(v));
           obj.name = v.renamedName || v.originalName || "";
@@ -416,7 +440,7 @@
       },
       listImportTable: function () {
         let arr = this.listImport;
-        const listedTemp = this.editTempList.filter(v => v.DataSource == DataSource.IMPORT).map(v => v.dataIdx);
+        const listedTemp = this.editTempList.filter(v => v.dataSource == DataSourceSim.IMPORT).map(v => v.dataIdx);
         return arr.map((v, i) => {
           let obj = JSON.parse(JSON.stringify(v));
           obj.name = v.renamedName || v.originalName || "";
@@ -425,7 +449,7 @@
         });
       },
       listDisplay: function () {
-        return [,this.listOriginalTable,this.listImportTable][this.displist];
+        return [, this.listOriginalTable, this.listImportTable][this.dispDataSource];
       },
       resultJSON: function () {
         const newFc = JSON.parse(JSON.stringify(this.fcDest));
@@ -433,7 +457,7 @@
         const newPhysicsDictionary = [];
 
         this.editTemp.forEach((v) => {
-          const list = [,this.fcDest,this.fcTemp][v.DataSource];
+          const list = [, this.fcDest, this.fcTemp][v.dataSource];
           newPhysicsSettings.push(JSON.parse(JSON.stringify(list.PhysicsSettings[v.dataIdx])));
           const dict = JSON.parse(JSON.stringify(list.Meta.PhysicsDictionary[v.dataIdx]));
           dict.Name = v.data.renamedName || v.data.originalName || "";
@@ -476,7 +500,7 @@
       importOutputParams: function () {
         const src = this.fcTemp;
         if (!src || !src?.PhysicsSettings?.length) return [];
-        const list = this.editTempList.filter(v => v.DataSource == DataSource.IMPORT).map(v => v.dataIdx);
+        const list = this.editTempList.filter(v => v.dataSource == DataSourceSim.IMPORT).map(v => v.dataIdx);
         return list.reduce((p, v) => {
           return p.concat(
             src.PhysicsSettings[v].Output
@@ -490,7 +514,7 @@
       importInputParams: function () {
         const src = this.fcTemp;
         if (!src || !src?.PhysicsSettings?.length) return [];
-        const list = this.editTempList.filter(v => v.DataSource == DataSource.IMPORT).map(v => v.dataIdx);
+        const list = this.editTempList.filter(v => v.dataSource == DataSourceSim.IMPORT).map(v => v.dataIdx);
         return list.reduce((p, v) => {
           return p.concat(
             src.PhysicsSettings[v].Input
@@ -502,7 +526,7 @@
         return this.importInputParams.filter(v => !this.destParams.includes(v));
       },
       mergedSelected: function () {
-        return this.mergedSelectedNames.length;
+        return this.mergedSelectedIndex.length;
       },
     },
   });
@@ -544,11 +568,11 @@
     app.canStartEditing = false;
     app.befEditErrors.splice(0);
     if (!app.objFileContent) {
-      app.befEditErrors.push("Target File is Empty.");
+      app.befEditErrors.push("Original File is Empty.");
     } else if (app.objFileContent.Version != 3) {
-      app.befEditErrors.push("Target File’s version is not supported.");
-    } else if (!isValidPhysicsJSON(app.objFileContent, "Target")) {
-      app.befEditErrors.push("Target File is not valid as .physics3.json");
+      app.befEditErrors.push("Original File’s version is not supported.");
+    } else if (!isValidPhysicsJSON(app.objFileContent, "Original")) {
+      app.befEditErrors.push("Original File is not valid as .physics3.json");
     }
     if (!app.srcFileContent) {
       // app.befEditErrors.push("Import File is Empty.");
@@ -566,7 +590,7 @@
     app.objFileContent = null;
     app.objFileErrors.splice(0);
     if (!file) {
-      app.objFileErrors.push("Target File is Empty");
+      app.objFileErrors.push("Original File is Empty");
       checkBeforeEditError();
       return;
     }
