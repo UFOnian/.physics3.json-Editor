@@ -122,6 +122,16 @@
   option {
     border-bottom: solid 1px;
   }
+
+  option.fromtarget.selected {
+    background-color: #4a90e2;
+    color: white;
+  }
+
+  option.fromimport.selected {
+    background-color: #4caf50;
+    color: white;
+  }
 </style>
 
 <body>
@@ -219,22 +229,27 @@
           <div style="padding: 4px 0 4px 15px; height: 24px;">
             <div style="display: inline-block; height: 100%;">
               <label style="border: solid 1px; margin: 1px; padding: 4px 8px;font-size: smaller;">Merged</label>
+              <button @click="startRename" :disabled="mergedSelectedIndex.length != 1">rename</button>
             </div>
           </div>
           <div style="flex: 1; display: flex;flex-direction: row-reverse;">
             <!-- Controller -->
             <div class="controller-pane" style="display: inline-block; height: 100%; width: 40px;">
-              <input type="button" value="<<" class="control-button" style="rotate: 90deg;padding-top: 3px;" tabindex="-1" @click="" />
-              <input type="button" value="<" class="control-button" style="rotate: 90deg;padding-top: 3px;" tabindex="-1" @click="" />
-              <input type="button" value=">" class="control-button" style="rotate: 90deg;padding-top: 3px;" tabindex="-1" @click="" />
-              <input type="button" value=">>" class="control-button" style="rotate: 90deg;padding-top: 3px;" tabindex="-1" @click="" />
+              <input type="button" value="<<" class="control-button" style="rotate: 90deg;padding-top: 3px;" tabindex="-1"
+                :disabled="!mergedSelectedIndex.length" @click="moveSelected(0)" />
+              <input type="button" value="<" class="control-button" style="rotate: 90deg;padding-top: 3px;" tabindex="-1"
+                :disabled="!mergedSelectedIndex.length" @click="moveSelected(1)" />
+              <input type="button" value=">" class="control-button" style="rotate: 90deg;padding-top: 3px;" tabindex="-1"
+                :disabled="!mergedSelectedIndex.length" @click="moveSelected(2)" />
+              <input type="button" value=">>" class="control-button" style="rotate: 90deg;padding-top: 3px;" tabindex="-1"
+                :disabled="!mergedSelectedIndex.length" @click="moveSelected(3)" />
             </div>
             <div style="display: inline-block; height: 100%; flex:1;text-align: center;">
               <!-- Contents -->
               <select multiple style="width: 95%;height: 95%;" v-model="mergedSelectedIndex">
-                <option :value="i" v-for="(v, i) in editTemp"
-                  :class="{ fromtarget: v.dataSource == DataSourceSim.TARGET ,fromimport: v.dataSource == DataSourceSim.IMPORT}">
-                  {{v.data.name}}
+                <option :value="i" v-for="(v, i) in editTempListDisp" :key="v.dataSource + '-' + v.dataIdx"
+                  :class="{ fromtarget: v.dataSource == DataSourceSim.TARGET ,fromimport: v.dataSource == DataSourceSim.IMPORT, selected: mergedSelectedIndex.includes(i)}">
+                  {{v.name}}
                 </option>
               </select>
             </div>
@@ -333,47 +348,102 @@
       insertDataUI: function () {
         const selectedFrom = [, this.selectedFromTarget, this.selectedFromImport][this.dispDataSource];
         const insertData = selectedFrom.map(i => this.listDisplay[i]).filter(v => !v.listed).map(v => v.idx);
-        const inseretIdx = this.mergedSelectedIndex.sort((a, b) => a - b)[0] || this.editTempList.length;
+        const inseretIdx = this.mergedSelectedIndex.slice().sort((a, b) => a - b)[0] || this.editTempList.length;
         this.insertData(inseretIdx, this.dispDataSource, insertData);
       },
       removeDataUI: function () {
-        const removes = this.mergedSelectedIndex.sort((a, b) => b - a); // Descending
+        const removes = this.mergedSelectedIndex.slice().sort((a, b) => b - a); // Descending
         removes.forEach(i => {
           this.editTempList.splice(i, 1);
         });
       },
-      swapper(i, j) { // TODO: Convert
-        if (i == j) return;
-        const temp = (this.editTemp.splice(i, 1, this.editTemp[j]))[0];
-        this.editTemp.splice(j, 1, temp);
-      },
-      chgSortNum: function (i, event, j, name) { // TODO: Convert
-        if (i < 0 || this.editTemp.length - 1 < i) return this.restoreFocus(name);;
-        if (event) {
-          j = event.target.value;
+      startRename: function () {
+        if (this.mergedSelectedIndex.length !== 1) return;
+        const selectedIdx = this.mergedSelectedIndex[0];
+        const item = this.editTempListDisp[selectedIdx];
+
+        const currentName = item.name;
+        let newName = currentName;
+        newName = window.prompt(
+          [
+            "Rename",
+            "Data Source: " + (item.dataSource == DataSourceSim.TARGET ? "Original" : "Import"),
+            "Source Name: " + (item.data.originalName || ""),
+            "Current Name: " + currentName,
+          ].join("\n"), newName);
+        if (newName === null) return; // cancel
+        const dupeTestArr = this.editTempListDisp.filter((v, i) => i !== selectedIdx).map(v => v.name);
+        while (newName.trim() === "" || dupeTestArr.some(v => v === newName)) {
+          newName = window.prompt(
+            [
+              "Rename",
+              "Data Source: " + (item.dataSource == DataSourceSim.TARGET ? "Original" : "Import"),
+              "Source Name: " + (item.data.originalName || ""),
+              "Current Name: " + currentName,
+              " !: You cannot use empty name or duplicate name.",
+            ].join("\n"), newName);
+          if (newName === null) return; // cancel
         }
-        if (j < 0 || this.editTemp.length - 1 < j) return this.restoreFocus(name);;
-        this.swapper(i, j);
-        this.restoreFocus(name);
+        item.data.renamedName = newName.trim();
       },
-      restoreFocus: function (name) {
-        this.$nextTick(() => {
-          document.querySelector("[data-key=\"" + name + "\"] [name=editTblSorter]").focus();
+      moveSelected: function (destination) {
+        // [0: Top, 1: Up, 2: Down, 3:Bottom]
+        if (!this.mergedSelectedIndex.length) return;
+        const selected = this.mergedSelectedIndex.slice().sort((a, b) => a - b);
+
+        if (destination === 1 && selected[0] === 0) destination = 0;
+        if (destination === 2 && selected[selected.length - 1] === this.editTempList.length - 1) destination = 3;
+
+        const moving = selected.map(i => this.editTempList[i]);
+
+        selected.slice().reverse().forEach(i => {
+          this.editTempList.splice(i, 1);
         });
+
+        let insertIdx, reselect;
+        switch (destination) {
+          case 0: // Top
+            insertIdx = 0;
+            reselect = false;
+            break;
+          case 1: // Up
+            insertIdx = selected[0] - 1;
+            reselect = true;
+            break;
+          case 2: // Down
+            const last = selected[selected.length - 1];
+            insertIdx = last + 1 - selected.length + 1;
+            reselect = true;
+            break;
+          case 3: // Bottom
+            insertIdx = this.editTempList.length;
+            reselect = false;
+            break;
+        }
+        this.editTempList.splice(insertIdx, 0, ...moving);
+        this.mergedSelectedIndex.splice(0);
+        if (reselect) {
+          const newSelection = moving.map((v, i) => insertIdx + i);
+          this.$nextTick(() => {
+            this.mergedSelectedIndex = newSelection;
+          });
+        } else {
+          this.mergedSelectedIndex = [];
+        }
       },
       destSwapped: function (idx) {
         // TODO: Convert
-        const curDestIndex = this.editTemp[idx].destIndex;
+        const curDestIndex = this.editTempListDisp[idx].destIndex;
         return (curDestIndex >= 0
-          && this.editTemp.slice(0, idx).some(e => e.destIndex >= curDestIndex)
+          && this.editTempListDisp.slice(0, idx).some(e => e.destIndex >= curDestIndex)
           ? styles.CRowSwapWarning
           : '');
       },
       tempSwapped: function (idx) {
         // TODO: Convert
-        const curTmpIndex = this.editTemp[idx].tmpIndex;
+        const curTmpIndex = this.editTempListDisp[idx].tmpIndex;
         return (curTmpIndex >= 0
-          && this.editTemp.slice(0, idx).some(e => e.tmpIndex >= curTmpIndex)
+          && this.editTempListDisp.slice(0, idx).some(e => e.tmpIndex >= curTmpIndex)
           ? styles.CRowSwapWarning
           : '');
       },
@@ -415,17 +485,21 @@
     },
     computed: {
       DataSourceSim: function () { return DataSourceSim; },
-      editTemp: function () {
+      editTempListDisp: function () {
         let arr = this.editTempList;
         return arr.map(v => {
-          let obj = JSON.parse(JSON.stringify([, this.listOriginal, this.listImport][v.dataSource][v.dataIdx]));
-          obj.name = obj.renamedName || obj.originalName || "";
-          obj = {
+          let obj = [, this.listOriginal, this.listImport][v.dataSource][v.dataIdx];
+          return {
+            name : obj.renamedName || obj.originalName || "",
             dataSource: v.dataSource,
             dataIdx: v.dataIdx,
             data: obj,
+            // {
+            //   idx: 0,
+            //   originalName: "import0",
+            //   renamedName: null,
+            // }
           };
-          return obj;
         });
       },
       listOriginalTable: function () {
@@ -456,7 +530,7 @@
         const newPhysicsSettings = [];
         const newPhysicsDictionary = [];
 
-        this.editTemp.forEach((v) => {
+        this.editTempListDisp.forEach((v) => {
           const list = [, this.fcDest, this.fcTemp][v.dataSource];
           newPhysicsSettings.push(JSON.parse(JSON.stringify(list.PhysicsSettings[v.dataIdx])));
           const dict = JSON.parse(JSON.stringify(list.Meta.PhysicsDictionary[v.dataIdx]));
@@ -487,7 +561,7 @@
       destParams: function () {
         const src = this.fcDest;
         if (!src || !src?.PhysicsSettings?.length) return [];
-        this.listOriginal.reduce((p, v, i) => {
+        return this.listOriginal.reduce((p, v, i) => {
           return p.concat(
             src.PhysicsSettings[i].Output
               .filter(v2 => v2.Destination.Target == "Parameter").map(v2 => v2.Destination.Id)
